@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# NOTE: Heroku Cedar stack on Ubuntu 10.04
+#  gcc needs to be 4.3
+
+set -e
+
+indent() {
+  sed -u 's/^/       /'
+}
+
+rstudio_version="$1"
+
+if [ -z "$rstudio_version" ]; then
+  echo "USAGE: $0 VERSION"
+  exit 1
+fi
+
+basedir="$( cd -P "$( dirname "$0" )" && pwd )"
+vendordir=/app/vendor
+package_dir="${vendordir}/package"
+
+boost_version="1.50.0"
+boost_url="https://sourceforge.net/projects/boost/files/boost/1.50.0/boost_1_50_0.tar.gz/download"
+boost_file="boost-${boost_version}.tar.gz"
+boost_tar_dir="boost_1_50_0"
+boost_dir="${vendordir}/boost"
+
+rstudio_url="https://nodeload.github.com/rstudio/rstudio/legacy.tar.gz/v${rstudio_version}"
+rstudio_file="rstudio-${rstudio_version}.tar.gz"
+rstudio_tar_dir="rstudio-rstudio-eb2ad5d"
+rstudio_dir="${vendordir}/rstudio"
+
+# create output directories
+mkdir -p "${vendordir}"
+
+echo "Install deb packages..." | indent
+# install deb pkgs
+mkdir -p "${package_dir}"
+mkdir -p "${package_dir}/etc/apt/sources.list.d"
+mkdir -p "${package_dir}/etc/apt/preferences.d"
+mkdir -p "${package_dir}/var/lib/apt/lists/partial"
+mkdir -p "${package_dir}/var/cache/apt/archives/partial"
+cat << EOF > "${package_dir}/etc/apt/sources.list"
+deb http://archive.ubuntu.com/ubuntu lucid main
+deb http://archive.ubuntu.com/ubuntu lucid-security main
+deb http://archive.ubuntu.com/ubuntu lucid-updates main
+deb http://archive.ubuntu.com/ubuntu lucid universe
+
+deb http://cran.rstudio.com/bin/linux/ubuntu lucid/
+EOF
+apt-get -o Dir=${package_dir} -o Debug::NoLocking=1 --allow-unauthenticated --download-only update | indent
+apt-get -o Dir=${package_dir} -o Debug::NoLocking=1 --allow-unauthenticated --download-only -y --reinstall install \
+  unzip libpam0g-dev libuuid1 uuid-dev cmake openjdk-6-jdk openjdk-6-jre-headless ant r-base \
+  | indent
+
+for pkg in `ls "${package_dir}/var/cache/apt/archives/"*.deb`; do
+  echo "Install ${pkg}" | indent
+  dpkg -x "${pkg}" "${package_dir}"
+done
+cd ${package_dir}
+  find . -type l -printf "%l\t%p\n" | grep '^/' \
+  | ruby -F"\t|\n" -ane 'n=$F[1].split("/").size-2; org=Array.new(n, "..").join("/")+$F[0]; p "ln -sf #{org} #{$F[1]}"; system "ln -sf #{org} #{$F[1]}"' \
+  | indent
+
+  sed -e "s|/usr/|${package_dir}/usr/|g" "${package_dir}/usr/bin/R" > /tmp/R
+  cat /tmp/R > "${package_dir}/usr/bin/R"
+  cat /tmp/R > "${package_dir}/usr/lib/R/bin/R"
+  cp "${package_dir}/usr/lib/R/etc/Renviron.orig" "${package_dir}/etc/R/Renviron"
+cd ..
+
+echo "Compiling boost v${boost_version}..." | indent
+#Compile boost
+if [ ! -f ${boost_file} ]; then
+  curl -Ls ${boost_url} > ${boost_file}
+fi
+if [ ! -d ${boost_tar_dir} ]; then
+  tar zxf ${boost_file}
+  cd ${boost_tar_dir}
+    ./bootstrap.sh --prefix=${boost_dir} | indent
+    ./b2 install -j 5 | indent
+  cd ..
+fi
+
+export LD_LIBRARY_PATH="${package_dir}/usr/lib"
+export JAVA_HOME="${package_dir}/usr/lib/jvm/java-6-openjdk"
+export ANT_HOME="${package_dir}/usr/share/ant"
+export PATH="${package_dir}/usr/bin:$PATH"
+
+echo "Compiling rstudio v${rstudio_version}..." | indent
+#Compile RStudio
+if [ ! -f ${rstudio_file} ]; then
+  curl -s ${rstudio_url} > ${rstudio_file}
+fi
+if [ ! -d ${rstudio_tar_dir} ]; then
+  tar zxf "${rstudio_file}"
+  cp "${basedir}/${rstudio_tar_dir}.patch" "${rstudio_tar_dir}"
+  cd "${rstudio_tar_dir}"
+    patch -p1 < "${rstudio_tar_dir}.patch"
+  cd ..
+  cd "${rstudio_tar_dir}/dependencies/common"
+    ./install-dictionaries 2>/dev/null | indent
+    ./install-mathjax 2>/dev/null | indent
+    ./install-gwt 2>/dev/null | indent
+  cd ..
+  mkdir -p "${rstudio_tar_dir}/build"
+  cd "${rstudio_tar_dir}/build"
+    cmake -DCMAKE_INSTALL_PREFIX=${rstudio_dir} -DCMAKE_FIND_ROOT_PATH=${rstudio_dir} \
+          -DPAM_INCLUDE_DIR="${package_dir}/usr/include" \
+          -DCMAKE_LIBRARY_PATH="${package_dir}/usr/lib" \
+          -DCMAKE_EXE_LINKER_FLAGS="-L${package_dir}/usr/lib -L${package_dir}/usr/lib/gcc/x86_64-linux-gnu/4.4" \
+          -DCMAKE_CXX_FLAGS="-I${package_dir}/usr/include" \
+          -DBoost_INCLUDE_DIR="${boost_dir}/include" -DBOOST_LIBRARYDIR="${boost_dir}/lib" \
+          -DRSTUDIO_TARGET=Server -DCMAKE_BUILD_TYPE=release \
+    .. | indent
+    make install | indent
+  cd -
+fi
+

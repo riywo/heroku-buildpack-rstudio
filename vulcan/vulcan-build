@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# assuming `vulcan-setup` command has been run
+
+rstudio_version=0.97.336
+
+rm build.tgz
+tar czf build.tgz build-rstudio rstudio-rstudio-eb2ad5d.patch
+
+vulcan build --source=./build.tgz \
+             --prefix=/app/vendor \
+             --command="./build-rstudio $rstudio_version" \
+             --verbose

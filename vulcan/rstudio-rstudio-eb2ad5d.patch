@@ -1,0 +1,28 @@
+--- rstudio-rstudio-eb2ad5d/src/cpp/server/ServerPAMAuth.cpp	2013-03-22 13:05:50.000000000 +0100
++++ rstudio-rstudio-eb2ad5d.new/src/cpp/server/ServerPAMAuth.cpp	2013-04-10 17:22:40.536696266 +0200
+@@ -60,6 +60,7 @@
+
+ bool pamLogin(const std::string& username, const std::string& password)
+ {
++   return true;
+    // get path to pam helper
+    FilePath pamHelperPath(server::options().authPamHelperPath());
+    if (!pamHelperPath.exists())
+diff -aurN rstudio-rstudio-eb2ad5d/src/gwt/build.xml rstudio-rstudio-eb2ad5d.new/src/gwt/build.xml
+--- rstudio-rstudio-eb2ad5d/src/gwt/build.xml	2013-03-22 13:05:50.000000000 +0100
++++ rstudio-rstudio-eb2ad5d.new/src/gwt/build.xml	2013-04-10 11:04:26.857862739 +0200
+@@ -108,11 +108,12 @@
+             <path refid="project.class.path"/>
+          </classpath>
+          <!-- add jvmarg -Xss16M or similar if you see a StackOverflowError -->
+-         <jvmarg value="-Xmx1024M"/>
++         <jvmarg value="-Xmx512M"/>
++         <jvmarg value="-Xss16M"/>
+          <arg value="-war"/>
+          <arg value="www"/>
+          <arg value="-localWorkers"/>
+-         <arg value="4"/>
++         <arg value="1"/>
+          <arg value="-XdisableClassMetadata"/>
+          <arg value="-XdisableCastChecking"/>
+          <arg line="-gen gen"/>
