@@ -52,7 +52,7 @@ deb http://cran.rstudio.com/bin/linux/ubuntu lucid/
 EOF
 apt-get -o Dir=${package_dir} -o Debug::NoLocking=1 --allow-unauthenticated --download-only update | indent
 apt-get -o Dir=${package_dir} -o Debug::NoLocking=1 --allow-unauthenticated --download-only -y --reinstall install \
-  unzip libpam0g-dev libuuid1 uuid-dev cmake openjdk-6-jdk openjdk-6-jre-headless ant r-base \
+  wget unzip libpam0g-dev libuuid1 uuid-dev cmake openjdk-6-jdk openjdk-6-jre-headless ant r-base \
   | indent
 
 for pkg in `ls "${package_dir}/var/cache/apt/archives/"*.deb`; do
@@ -73,7 +73,7 @@ cd ${workdir}
 echo "Compiling boost v${boost_version}..." | indent
 #Compile boost
 if [ ! -f ${boost_file} ]; then
-  curl -Ls ${boost_url} > ${boost_file}
+  curl -L ${boost_url} > ${boost_file}
 fi
 if [ ! -d ${boost_tar_dir} ]; then
   tar zxf ${boost_file}
@@ -91,7 +91,7 @@ export PATH="${package_dir}/usr/bin:$PATH"
 echo "Compiling rstudio v${rstudio_version}..." | indent
 #Compile RStudio
 if [ ! -f ${rstudio_file} ]; then
-  curl -s ${rstudio_url} > ${rstudio_file}
+  curl ${rstudio_url} > ${rstudio_file}
 fi
 if [ ! -d ${rstudio_tar_dir} ]; then
   tar zxf "${rstudio_file}"
@@ -100,9 +100,9 @@ if [ ! -d ${rstudio_tar_dir} ]; then
     patch -p1 < "${rstudio_tar_dir}.patch" | indent
   cd ${workdir}
   cd "${rstudio_tar_dir}/dependencies/common"
-    ./install-dictionaries 2>/dev/null | indent
-    ./install-mathjax 2>/dev/null | indent
-    ./install-gwt 2>/dev/null | indent
+    ./install-dictionaries | indent
+    ./install-mathjax | indent
+    ./install-gwt | indent
   cd ${workdir}
   mkdir -p "${rstudio_tar_dir}/build"
   cd "${rstudio_tar_dir}/build"
